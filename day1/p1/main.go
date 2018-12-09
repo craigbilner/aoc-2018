@@ -19,17 +19,13 @@ func readAndTotal(r io.Reader) int {
 			break
 		}
 
-		operator := string(txt[0])
-		value, _ := strconv.Atoi(txt[1:])
+		value, err := strconv.Atoi(txt)
 
-		switch operator {
-		case "+":
-			total += value
-		case "-":
-			total -= value
-		default:
+		if err != nil {
 			continue
 		}
+
+		total += value
 	}
 
 	return total
