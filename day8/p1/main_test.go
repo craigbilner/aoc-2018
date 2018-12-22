@@ -13,7 +13,7 @@ func TestReadAndSumMeta138(t *testing.T) {
 	}
 }
 
-func TestReadAndSumMeta30(t *testing.T) {
+func TestReadAndSumMeta50(t *testing.T) {
 	input := `3 1 0 1 10 1 1 0 1 10 10 0 1 10 10`
 	result := sumMeta(input)
 
