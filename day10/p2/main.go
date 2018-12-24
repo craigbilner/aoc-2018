@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -33,37 +32,12 @@ func unsafeAtoi(s string) int {
 	return i
 }
 
-func printPoints(f *os.File, s *sky, points map[int][]int) {
-	for y := s.topLeft.y; y < s.bottomRight.y+1; y++ {
-		line := make([]int, s.bottomRight.x-s.topLeft.x+1)
-
-		v, ok := points[y]
-		if !ok {
-			continue
-		}
-
-		for _, px := range v {
-			line[px-s.topLeft.x] = 1
-		}
-
-		f.WriteString(fmt.Sprintf("%v\n", line))
-	}
-}
-
-func calculatePosition(points []*point, t int) (*sky, map[int][]int) {
-	m := make(map[int][]int)
+func calculatePosition(points []*point, t int) *sky {
 	left, right, up, down := 0, 0, 0, 0
 
 	for _, p := range points {
 		x := p.position.x + (p.velocity.x * t)
 		y := p.position.y + (p.velocity.y * t)
-
-		if _, ok := m[y]; !ok {
-			m[y] = []int{x}
-			continue
-		}
-
-		m[y] = append(m[y], x)
 
 		if x < left {
 			left = x
@@ -91,10 +65,10 @@ func calculatePosition(points []*point, t int) (*sky, map[int][]int) {
 			right,
 			down,
 		},
-	}, m
+	}
 }
 
-func readAndPrint(from, duration int, r io.Reader) {
+func readAndTime(r io.Reader) int {
 	scanner := bufio.NewScanner(r)
 	re := regexp.MustCompile(`position=<([0-9\-\s]*), ([0-9\-\s]*)> velocity=<([0-9\-\s]*), ([0-9\-\s]*)>`)
 	var points []*point
@@ -125,23 +99,26 @@ func readAndPrint(from, duration int, r io.Reader) {
 		points = append(points, p)
 	}
 
-	pwd, _ := os.Getwd()
+	t := 0
+	s := calculatePosition(points, 0)
+	for {
+		t++
 
-	for i := from; i < from+duration; i++ {
-		f, err := os.Create(filepath.Join(pwd, fmt.Sprintf("output_%v.txt", i)))
-		defer f.Close()
+		news := calculatePosition(points, t)
 
-		if err != nil {
-			println(err)
-			return
+		if news.topLeft.x < s.topLeft.x ||
+			news.topLeft.y < s.topLeft.y ||
+			news.bottomRight.x > s.bottomRight.x ||
+			news.bottomRight.y > s.bottomRight.y {
+			break
 		}
 
-		s, pointsByRow := calculatePosition(points, i)
-		f.WriteString(fmt.Sprintf("Time: %v\n", i))
-		printPoints(f, s, pointsByRow)
+		s = news
 	}
+
+	return t - 1
 }
 
 func main() {
-	readAndPrint(10000, 200, os.Stdin)
+	fmt.Printf("%v\n", readAndTime(os.Stdin))
 }
