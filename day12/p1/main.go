@@ -70,8 +70,6 @@ func (s *state) addPot(value bool) {
 	s.pots[s.max-1].rr = s.pots[s.max+1]
 
 	s.max++
-
-	// fmt.Printf("max %v\n", s.max)
 }
 
 func (s *state) pad() {
@@ -135,8 +133,6 @@ func (s *state) pad() {
 
 		s.max += 4
 	}
-
-	// fmt.Printf("padding and setting %v %v\n", s.min, s.max)
 }
 
 func (s *state) applyInstructions(grow, noGrow []*instruction) {
@@ -149,9 +145,7 @@ func (s *state) applyInstructions(grow, noGrow []*instruction) {
 }
 
 func (s *state) generateChanges(grow, noGrow []*instruction) {
-	// fmt.Printf("generateChanges min %v max %v\n", s.min, s.max)
 	for i := s.min + 2; i < s.max-2; i++ {
-		// fmt.Printf("i %v\n", i)
 		if s.pots[i].value {
 			for _, ng := range noGrow {
 				if s.pots[i].ll.value == ng.ll && s.pots[i].l.value == ng.l && s.pots[i].value == ng.c && s.pots[i].r.value == ng.r && s.pots[i].rr.value == ng.rr {
@@ -182,7 +176,6 @@ type batch struct {
 
 func (s *state) generate(grow, noGrow []*instruction) {
 	sort.Ints(s.changes)
-	// fmt.Printf("generate %v\n", s.changes)
 
 	var batches []*batch
 	var b *batch
@@ -196,19 +189,16 @@ func (s *state) generate(grow, noGrow []*instruction) {
 
 		if c <= b.to || (c-1) <= b.to || (c-2) <= b.to {
 			b.to = c + 2
-			// fmt.Printf("extended %v to %v\n", c, b.to)
 			continue
 		}
 
 		batches = append(batches, b)
-		// fmt.Printf("adding b %v\n", b)
 		b = &batch{
 			c - 2, c + 2,
 		}
 	}
-	// fmt.Printf("adding b %v\n", b)
+
 	batches = append(batches, b)
-	// fmt.Printf("batches %#v\n", batches)
 
 	ch := make(chan []int, len(batches))
 	var wg sync.WaitGroup
@@ -217,7 +207,6 @@ func (s *state) generate(grow, noGrow []*instruction) {
 		go func(bbb *batch) {
 			var changes []int
 			for i := bbb.from; i < bbb.to+1; i++ {
-				// fmt.Printf("i %v\n", i)
 				if s.pots[i].value {
 					for _, ng := range noGrow {
 						if s.pots[i].ll.value == ng.ll && s.pots[i].l.value == ng.l && s.pots[i].value == ng.c && s.pots[i].r.value == ng.r && s.pots[i].rr.value == ng.rr {
@@ -230,7 +219,6 @@ func (s *state) generate(grow, noGrow []*instruction) {
 				}
 
 				for _, g := range grow {
-					// fmt.Printf("pot %v %#v\n", i, s.pots[i])
 					if s.pots[i].ll.value == g.ll && s.pots[i].l.value == g.l && s.pots[i].value == g.c && s.pots[i].r.value == g.r && s.pots[i].rr.value == g.rr {
 						changes = append(changes, i)
 						break
