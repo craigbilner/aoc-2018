@@ -78,15 +78,16 @@ type unit struct {
 	typ creature
 	*coord
 	hitPoints int
+	power     int
 }
 
 func (u *unit) alive() bool {
 	return u.hitPoints > 0
 }
 
-func (u *unit) attack() bool {
+func (u *unit) attack(power int) bool {
 	if u.alive() {
-		u.hitPoints -= 3
+		u.hitPoints -= power
 	}
 
 	return u.alive()
@@ -96,12 +97,16 @@ func (u *unit) move(c *coord) {
 	u.coord = c
 }
 
-func newGoblin(x, y int) *unit {
-	return &unit{typ: gobliny, coord: &coord{x, y}, hitPoints: 200}
+func (u *unit) String() string {
+	return fmt.Sprintf("\n%v: %v\n", u.coord, u.hitPoints)
 }
 
-func newElf(x, y int) *unit {
-	return &unit{typ: elfy, coord: &coord{x, y}, hitPoints: 200}
+func newGoblin(x, y int) *unit {
+	return &unit{typ: gobliny, coord: &coord{x, y}, hitPoints: 200, power: 3}
+}
+
+func newElf(x, y, power int) *unit {
+	return &unit{typ: elfy, coord: &coord{x, y}, hitPoints: 200, power: power}
 }
 
 type unitByCoord []*unit
@@ -332,7 +337,7 @@ func opponent(from *coord, enemies map[string]*unit) (enemy *unit, canAttack boo
 	return n, true
 }
 
-func fight(a arena, elves []*unit, goblins []*unit) int {
+func combat(a arena, elves []*unit, goblins []*unit) (sum int, remainingElves int) {
 	round := 0
 
 Loop:
@@ -380,7 +385,7 @@ Loop:
 			}
 
 			if hasOpponent {
-				stillAlive := enemy.attack()
+				stillAlive := enemy.attack(u.power)
 
 				if !stillAlive {
 					delete(positions, enemy.coord.String())
@@ -426,7 +431,7 @@ Loop:
 				}
 
 				if hasOpponent {
-					stillAlive := enemy.attack()
+					stillAlive := enemy.attack(u.power)
 
 					if !stillAlive {
 						delete(positions, enemy.coord.String())
@@ -442,23 +447,111 @@ Loop:
 		}
 
 		round++
-
-		// fmt.Printf("ROUND %v\n", round)
 	}
 
-	sum := 0
 	for _, u := range elves {
 		if u.alive() {
-			sum += u.hitPoints
-		}
-	}
-	for _, u := range goblins {
-		if u.alive() {
+			remainingElves += 1
 			sum += u.hitPoints
 		}
 	}
 
-	return sum * round
+	sum *= round
+
+	return
+}
+
+func fight(a arena, elves []*unit, goblins []*unit) int {
+	need := len(elves)
+	power := 4
+	prev := 0
+	max := 4
+	min := 4
+	sum := 0
+
+	for {
+		testArena := make(arena)
+		for k, v := range a {
+			testArena[k] = newCavern(v.x, v.y)
+		}
+		makeNeighbours(testArena)
+		var testElves []*unit
+		for _, e := range elves {
+			testElves = append(testElves, newElf(e.x, e.y, power))
+		}
+		var testGoblins []*unit
+		for _, g := range goblins {
+			testGoblins = append(testGoblins, newGoblin(g.x, g.y))
+		}
+
+		s, remaining := combat(testArena, testElves, testGoblins)
+
+		// fmt.Printf("power %v, prev %v, s: %v, r: %v\n", power, prev, s, remaining)
+
+		if remaining == need && (power == 4 || (prev-power == 1) || (power-prev == 1)) {
+			sum = s
+			break
+		}
+
+		if (prev-power == 1) || (power-prev == 1) {
+			break
+		}
+
+		if power > max {
+			max = power
+		}
+
+		if remaining == need && power > prev {
+			min = prev
+			p := power
+			power = prev + ((power - prev) / 2)
+			prev = p
+			sum = s
+
+			continue
+		}
+
+		if remaining == need {
+			p := power
+			power = min + ((power - min) / 2)
+			prev = p
+			sum = s
+
+			continue
+		}
+
+		if sum > 0 {
+			min = power
+			p := power
+			power = power + ((max - power) / 2)
+			prev = p
+
+			continue
+		}
+
+		min = prev
+		prev = power
+		power *= 2
+	}
+
+	return sum
+}
+
+func makeNeighbours(a arena) {
+	for _, v := range a {
+		if nc, ok := a[coordToString(v.x, v.y-1)]; ok {
+			v.neighbours = append(v.neighbours, nc)
+		}
+		if nc, ok := a[coordToString(v.x+1, v.y)]; ok {
+			v.neighbours = append(v.neighbours, nc)
+		}
+		if nc, ok := a[coordToString(v.x, v.y+1)]; ok {
+			v.neighbours = append(v.neighbours, nc)
+		}
+		if nc, ok := a[coordToString(v.x-1, v.y)]; ok {
+			v.neighbours = append(v.neighbours, nc)
+		}
+	}
 }
 
 func readerToArena(r io.Reader) (arena, []*unit, []*unit) {
@@ -487,7 +580,7 @@ func readerToArena(r io.Reader) (arena, []*unit, []*unit) {
 				goblins = append(goblins, newGoblin(x, y))
 			case 'E':
 				a[coordToString(x, y)] = newCavern(x, y)
-				elves = append(elves, newElf(x, y))
+				elves = append(elves, newElf(x, y, 0))
 			default:
 				panic(fmt.Sprintf("Unexpected input %v", c))
 			}
@@ -498,20 +591,7 @@ func readerToArena(r io.Reader) (arena, []*unit, []*unit) {
 		y++
 	}
 
-	for _, v := range a {
-		if nc, ok := a[coordToString(v.x, v.y-1)]; ok {
-			v.neighbours = append(v.neighbours, nc)
-		}
-		if nc, ok := a[coordToString(v.x+1, v.y)]; ok {
-			v.neighbours = append(v.neighbours, nc)
-		}
-		if nc, ok := a[coordToString(v.x, v.y+1)]; ok {
-			v.neighbours = append(v.neighbours, nc)
-		}
-		if nc, ok := a[coordToString(v.x-1, v.y)]; ok {
-			v.neighbours = append(v.neighbours, nc)
-		}
-	}
+	makeNeighbours(a)
 
 	return a, elves, goblins
 }
